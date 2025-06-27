@@ -1,4 +1,4 @@
-import sqlite3, getpass, pyfiglet, os, json, string, random
+import getpass, pyfiglet
 from termcolor import colored
 
 from DataBase import DataBase
@@ -11,13 +11,25 @@ def title_text(txt):
     title = pyfiglet.figlet_format(txt)
     print(colored(title, color="blue"))
 
-
 def main():
-    DataBase.create_db()
-    title_text("Password Manager")
-
     db = DataBase()
-    master_password = getpass.getpass("Enter Your Master Password: ")
+
+    if (not Security.check_database()):
+        DataBase.create_db()
+        password = getpass.getpass(f"{Colors.RED}Enter Master Password: {Colors.RESET}")
+        confrem_password = getpass.getpass(f"{Colors.RED}Reenter Master Password: {Colors.RESET}")
+
+        if (password == confrem_password):
+            Security.create_password(confrem_password)
+        else:
+            print(f"{Messages.MASTER_PASSWORD_MISMATCH}")
+
+    master_password = getpass.getpass(Messages.MASTER_PASSWORD_PROMPT)
+
+    # check password
+    if (not(Security.check_password(master_password))):
+        print(f"{Colors.RED}{Messages.MASTER_PASSWORD_INCORRECT}{Colors.RESET}")
+        main()
 
     while True:
         print()
@@ -43,19 +55,15 @@ def main():
         elif choice == "5":
             db.delete_account(master_password)
         elif choice == "6":
-            Security.password_generator()
+            print(f"\n{Colors.GREEN}Genarated Password is : {Security.password_generator()}{Colors.RESET}")
         elif choice == "7":
-            print(f"{Colors.GREEN}{Messages.EXIT}{Colors.RESET}")
+            print(Messages.EXIT)
             break
         else:
-            print(f"{Colors.RED}{Messages.INVALID_OPTION}\n{Colors.RESET}")
+            print(Messages.INVALID_OPTION)
 
 # Start here
 if __name__ == "__main__":
+    # title_text("Password Manager")
+    print(Messages.WELCOME)
     main()
-
-    # db = DataBase()
-    # password = getpass.getpass("Password: ")
-    # json_file = Config.JSON_FILE
-    # db.insert_json_to_sqlite(password, json_file)
-

@@ -1,7 +1,7 @@
 import sqlite3, json
 
 from Security import Security
-from Constant import Colors, Config
+from Constant import Colors, Config, Messages
 
 
 class DataBase:
@@ -36,37 +36,31 @@ class DataBase:
     # insurt account
     def insert_account(self, master_password: str):
         key = self.sectuty.generate_key(master_password)
-        account_type = input(f"{Colors.CYAN}Account Type (e.g., Gmail, Facebook): {Colors.RESET}").strip()
 
-        fields = [
-            "name", "username", "email", "phone", "password",
-            "date_of_birth", "recovery_email", "recovery_phone",
-            "backup_codes", "account_create"
-        ]
+        data = {field: input(f"🔸 {field.replace('_', ' ').title()}: ") for field in Config.fields}
+        encrypted_values = [self.sectuty.encrypt(data[field], key) for field in Config.fields]
 
-        data = {field: input(f"🔸 {field.replace('_', ' ').title()}: ") for field in fields}
-        encrypted_values = [self.sectuty.encrypt(data[field], key) for field in fields]
-
-        conn = sqlite3.connect("accounts.db")
+        conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
         cursor.execute(f"""
-            INSERT INTO accounts (account_type, {', '.join(fields)})
-            VALUES (?, {', '.join(['?' for _ in fields])})
-        """, [account_type] + encrypted_values)
+            INSERT INTO accounts ({', '.join(Config.fields)})
+            VALUES ({', '.join(['?' for _ in Config.fields])})
+        """, encrypted_values)
         conn.commit()
         conn.close()
 
-        print(f"{Colors.GREEN}✅ Account inserted successfully!\n{Colors.RESET}")
+        print(Messages.ACCOUNT_ADDED)
 
     # show account
     def view_account(self, master_password: str):
         key = self.sectuty.generate_key(master_password)
-        account_type = input(f"{Colors.CYAN}Enter Account Type: {Colors.RESET}").strip()
-        user_input = input(f"{Colors.CYAN}Enter Your Email or Username: {Colors.RESET}").strip()
+        
+        account_type = input(Messages.ACCOUNT_TYPE).strip()
+        username_email = input(Messages.USERNAME_EMAIL).strip()
 
-        conn = sqlite3.connect("accounts.db")
+        conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM accounts WHERE account_type = ?", (account_type,))
+        cursor.execute("SELECT * FROM accounts")
         rows = cursor.fetchall()
         conn.close()
 
@@ -74,16 +68,13 @@ class DataBase:
 
         for row in rows:
             try:
-                decrypted_username = self.sectuty.decrypt(row[3], key)
-                decrypted_email = self.sectuty.decrypt(row[4], key)
-
-                if user_input == decrypted_username or user_input == decrypted_email:
+                if ((account_type == Security.decrypt(row[1], key)) and (username_email == Security.decrypt(row[3], key) or username_email == Security.decrypt(row[4], key))):
                     decrypted = {
                         "id": row[0],
-                        "account_type": row[1],
+                        "account_type": self.sectuty.decrypt(row[1], key),
                         "name": self.sectuty.decrypt(row[2], key),
-                        "username": decrypted_username,
-                        "email": decrypted_email,
+                        "username": self.sectuty.decrypt(row[3], key),
+                        "email": self.sectuty.decrypt(row[4], key),
                         "phone": self.sectuty.decrypt(row[5], key),
                         "password": self.sectuty.decrypt(row[6], key),
                         "date_of_birth": self.sectuty.decrypt(row[7], key),
@@ -117,15 +108,16 @@ class DataBase:
                 continue
 
         if not found:
-            print(f"{Colors.RED}❌ No matching data found or wrong password.\n{Colors.RESET}")
+            print(Messages.ACCOUNT_NOT_FOUND)
             return
 
     # edit account
     def edit_account(self, master_password: str):
         key = self.sectuty.generate_key(master_password)
+        
         account_id = input(f"✏️ Enter Account ID to Edit: {Colors.RESET}").strip()
 
-        conn = sqlite3.connect("accounts.db")
+        conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM accounts WHERE id = ?", (account_id,))
         row = cursor.fetchone()
@@ -134,60 +126,60 @@ class DataBase:
             print(f"{Colors.RED}❌ ID not found.\n{Colors.RESET}")
             return
 
-        fields = [
-            "name", "username", "email", "phone", "password",
-            "date_of_birth", "recovery_email", "recovery_phone",
-            "backup_codes", "account_create"
-        ]
-
         print(f"{Colors.CYAN}🔁 Leave field blank to keep existing value.{Colors.RESET}")
         updates = {}
 
-        for i, field in enumerate(fields, start=2):
+        for i, field in enumerate(Config.fields, start=2):
             try:
                 current_value = self.sectuty.decrypt(row[i], key)
             except Exception:
                 print(f"{Colors.RED}❌ Wrong password or corrupted data.\n{Colors.RESET}")
                 return
 
-            new_value = input(f"🔸 {field.replace('_', ' ').title()} (current: {current_value}): ").strip()
+            new_value = input(f"🔸 {field.replace('_', ' ').title()} (current: {Colors.BLUE}{current_value}{Colors.RESET}): ").strip()
             updates[field] = self.sectuty.encrypt(new_value, key) if new_value else row[i]
 
         update_values = list(updates.values()) + [account_id]
         cursor.execute(f"""
-            UPDATE accounts SET {', '.join([f"{field} = ?" for field in fields])}
+            UPDATE accounts SET {', '.join([f"{field} = ?" for field in Config.fields])}
             WHERE id = ?
         """, update_values)
         conn.commit()
         conn.close()
 
-        print(f"{Colors.GREEN}✅ Account updated successfully!\n{Colors.RESET}")
+        print(f"{Colors.GREEN}{Messages.ACCOUNT_UPDATED}\n{Colors.RESET}")
 
     # find account
     def find_account(self, master_password: str):
-        account_type = input(f"{Colors.CYAN}Enter Account Type: {Colors.RESET}").strip()
+        key = self.sectuty.generate_key(master_password)
+        
+        account_type = self.sectuty.encrypt(input(Messages.ACCOUNT_TYPE).strip(), key)
 
-        conn = sqlite3.connect("accounts.db")
+        conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM accounts WHERE account_type = ?", (account_type,))
         rows = cursor.fetchall()
         conn.close()
 
         if not rows:
-            print(f"{Colors.RED}❌ No accounts found for this type.\n{Colors.RESET}")
+            print(f"{Colors.RED}❌ No accounts found for this type.{Colors.RESET}")
             return
-        print(f"{Colors.GREEN}{len(rows)} accounts found.{Colors.RESET}\n")
+        print(f"{Colors.GREEN}{len(rows)} accounts found.{Colors.RESET}")
 
     # delete account
     def delete_account(self, master_password: str):
         key = self.sectuty.generate_key(master_password)
+        
         account_id = input(f"{Colors.RED}Enter Account ID to Delete: {Colors.RESET}").strip()
+        if (account_id == "1"):
+            print(Messages.PERMISSION_DENIED)
+            return
         confirm = input(f"{Colors.RED}Are you sure you want to delete this account? (yes/no): {Colors.RESET}").strip().lower()
         if confirm != 'yes':
             print(f"{Colors.RED}Deletion cancelled.{Colors.RESET}")
             return
         
-        conn = sqlite3.connect("accounts.db")
+        conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM accounts WHERE id = ?", (account_id,))
         row = cursor.fetchone()
@@ -200,50 +192,4 @@ class DataBase:
         conn.commit()
         conn.close()
 
-        print(f"{Colors.GREEN} Account deleted successfully!\n{Colors.RESET}")
-
-    def insert_json_to_sqlite(self, master_password: str, json_file: str):
-        key = self.sectuty.generate_key(master_password)
-
-        try:
-            with open(json_file, 'r') as f:
-                json_data = json.load(f)
-        except Exception as e:
-            print(f"{Colors.RED}❌ Error reading JSON file: {e}{Colors.RESET}")
-            return
-
-        all_accounts = json_data.get("accounts", {})
-
-        fields = [
-            "name", "username", "email", "phone", "password",
-            "date_of_birth", "recovery_email", "recovery_phone",
-            "backup_codes", "account_create"
-        ]
-
-        total_inserted = 0
-
-        for account_type, entries in all_accounts.items():
-            for entry in entries:
-                data = {}
-                for field in fields:
-                    value = entry.get(field, '')
-                    if isinstance(value, list):
-                        value = ', '.join(value)
-                    data[field] = value
-
-                encrypted_values = [self.sectuty.encrypt(data[field], key) for field in fields]
-
-                try:
-                    conn = sqlite3.connect("accounts.db")
-                    cursor = conn.cursor()
-                    cursor.execute(f"""
-                        INSERT INTO accounts (account_type, {', '.join(fields)})
-                        VALUES (?, {', '.join(['?' for _ in fields])})
-                    """, [account_type] + encrypted_values)
-                    conn.commit()
-                    conn.close()
-                    total_inserted += 1
-                except Exception as e:
-                    print(f"{Colors.RED}❌ Failed to insert entry for '{account_type}': {e}{Colors.RESET}")
-
-        print(f"{self.GREEN}✅ Total {total_inserted}accounts inserted from JSON!{self.RESET}")
+        print(f"{Colors.GREEN}{Messages.ACCOUNT_DELETED}\n{Colors.RESET}")
