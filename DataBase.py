@@ -117,6 +117,10 @@ class DataBase:
         
         account_id = input(f"✏️ Enter Account ID to Edit: {Colors.RESET}").strip()
 
+        if (account_id == "1"):
+            print(Messages.PERMISSION_DENIED)
+            return
+        
         conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM accounts WHERE id = ?", (account_id,))

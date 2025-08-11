@@ -60,14 +60,15 @@ class Security:
         return Fernet(key).decrypt(data.encode()).decode()
     
     def password_generator():
-        length = input("Enter password length (default 16): ").strip()
         try:
-            length = int(length)
-            if (len > 30):
+            length = int(input("Enter password length (default 16): "))
+            if (length > 30):
                 return f"{Colors.RED}Password length less than or equal 30!{Colors.RED}"
+            elif (length < 8):
+                return f"{Colors.RED}Password length greater than or equal 8!{Colors.RED}"
         except:
             length = 16
         chars = string.ascii_letters + string.digits + string.punctuation
         password = ''.join(random.choice(chars) for _ in range(length))
-        
+
         return password

@@ -16,11 +16,13 @@ def main():
 
     if (not Security.check_database()):
         DataBase.create_db()
+        print(f"{Colors.GREEN}Database created successfully! Please set a master password.\n{Colors.RESET}")
         password = getpass.getpass(f"{Colors.RED}Enter Master Password: {Colors.RESET}")
         confrem_password = getpass.getpass(f"{Colors.RED}Reenter Master Password: {Colors.RESET}")
 
         if (password == confrem_password):
             Security.create_password(confrem_password)
+            print(f"{Colors.GREEN}Master password set successfully!\n{Colors.RESET}")
         else:
             print(f"{Messages.MASTER_PASSWORD_MISMATCH}")
 
